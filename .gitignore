@@ -1,0 +1,15 @@
+build
+logs
+target
+sbt-dist
+/.idea
+/.idea_modules
+/.classpath
+/.gradle
+/.project
+/.settings
+/RUNNING_PID
+/.vscode
+.DS_Store
+conf/sheets_api_credentials.json
+/tokens
