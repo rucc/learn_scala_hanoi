@@ -55,11 +55,9 @@ object Hanoi{
   }
 
   def replaceTower(from: Int, to: Int, s: HanoiState): Unit ={
-    var mutatedState = s
-    for(i <- s.towers(from).indices) {
-      mutatedState = replaceDisc(s.towers(from)(i), to, mutatedState)
-    }
-    render(mutatedState)
+    val indices: Seq[Int] = s.towers(from).indices
+    val replaced = indices.foldLeft(s){ (state, idx) => replaceDisc(s.towers(from)(idx), to, state)}
+    render(replaced)
   }
 
   def replaceDisc(size: Int, toTowerIdx: Int, s: HanoiState): HanoiState = {
@@ -69,28 +67,41 @@ object Hanoi{
   }
 
   def replaceDisc(fromTowerIdx: Int, fromTowerSubIdx: Int, toTowerIdx: Int, s: HanoiState) :HanoiState ={
-    var mutatedState = s
-    if(mutatedState.towers(fromTowerIdx).size == fromTowerSubIdx + 1) {
+    def moveToCollidingTower(currSize: Int) = {
+      // target has to be prepared
+      // find biggest disc idx which is smaller than currSize
+      val collIdx = s.towers(toTowerIdx).indexWhere(_ < currSize)
+      val clearTarget = replaceDisc(toTowerIdx, collIdx, s.restTowerIdx(fromTowerIdx, toTowerIdx), s)
+      val movedToTarget = replaceDisc(fromTowerIdx, fromTowerSubIdx, toTowerIdx, clearTarget)
+      movedToTarget
+    }
+
+    def moveUpperToOther = {
+      // not topmost, move upper disc to other tower
+      val clearSource = replaceDisc(fromTowerIdx, fromTowerSubIdx + 1, s.restTowerIdx(fromTowerIdx, toTowerIdx), s)
+      replaceDisc(fromTowerIdx, fromTowerSubIdx, toTowerIdx, clearSource)
+    }
+
+    def executeMove = {
+      // move
+      Thread.sleep(HanoiSetup.sleep)
+      render(s)
+      s.move(fromTowerIdx, toTowerIdx)
+    }
+
+    def isTopmost = s.towers(fromTowerIdx).size == fromTowerSubIdx + 1
+
+    if(isTopmost) {
       // topmost disc
       val currSize = s.towers(fromTowerIdx)(fromTowerSubIdx)
-      if (mutatedState.towers(toTowerIdx).lastOption.getOrElse(Int.MaxValue) > currSize) {
-        // move
-        Thread.sleep(HanoiSetup.sleep)
-        render(s)
-        return mutatedState.move(fromTowerIdx, toTowerIdx)
+      if (s.towers(toTowerIdx).lastOption.getOrElse(Int.MaxValue) > currSize) {
+        executeMove
       } else {
-        // target has to be prepared
-        // find biggest disc idx which is smaller than currSize
-        val collIdx = mutatedState.towers(toTowerIdx).indexWhere(_ < currSize)
-        mutatedState = replaceDisc(toTowerIdx, collIdx, mutatedState.restTowerIdx(fromTowerIdx, toTowerIdx), mutatedState)
-        mutatedState = replaceDisc(fromTowerIdx, fromTowerSubIdx, toTowerIdx, mutatedState)
+        moveToCollidingTower(currSize)
       }
     }
     else{
-      // not topmost, move upper disc to other tower
-      mutatedState = replaceDisc(fromTowerIdx, fromTowerSubIdx + 1, s.restTowerIdx(fromTowerIdx, toTowerIdx), mutatedState)
-      mutatedState = replaceDisc(fromTowerIdx, fromTowerSubIdx, toTowerIdx, mutatedState)
+      moveUpperToOther
     }
-    mutatedState
   }
 }
