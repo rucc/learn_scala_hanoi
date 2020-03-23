@@ -1,15 +1,27 @@
-object HanoiSetup {
-  val sleep = 500
-  val padLen = 6
-  val n = 5
+object HanoiEnv {
+  val debug = false
+}
+
+class HanoiSetup (
+  val n:Int = 5,
+  val afterMove: HanoiState => Unit = HanoiSetup.afterMove
+)
+object HanoiSetup{
+  def afterMove(hs: HanoiState):Unit = {
+    Thread.sleep(400)
+    print("\r" + hs.render())
+  }
 }
 
 object MainApp extends App {
-  val s = Hanoi.initState(HanoiSetup.n)
-  Hanoi.replaceTower(0, 2, s)
+  val setup = new HanoiSetup()
+  val hanoi = Hanoi(setup)
+  val s = HanoiState.initState(setup.n)
+  hanoi.replaceSubTower(0, 0, 2, s)
 }
 
 case class HanoiState(towers: List[List[Int]]){
+  val padLen:Int = towers.flatten.max
   def canmove(from: Int, to: Int): Tuple2[Boolean, String] = {
     if (from == to) {
       return (true, "no move")
@@ -38,70 +50,37 @@ case class HanoiState(towers: List[List[Int]]){
   def restTowerIdx(one: Int, other: Int) : Int = {
     towers.indices.filter(num => num != one && num != other).head
   }
+
+  def render():String={
+    towers.map(_.mkString("").padTo(padLen, ' ')).mkString("")
+  }
 }
 
-object Hanoi{
-  def initState(n: Int):HanoiState ={
+object HanoiState {
+  def initState(n: Int): HanoiState = {
     HanoiState(
       List((1 to n).toList.reverse, List[Int](), List[Int]())
     )
   }
+}
 
-  def render(s:HanoiState):Unit={
-    print("\r" + s.towers.foldLeft("")((accu, tower) => accu + printList(tower)))
-  }
-  def printList(l: List[Int]) : String ={
-    l.foldLeft("")((accu,num)=>accu+num).padTo(HanoiSetup.padLen, ' ')
-  }
-
-  def replaceTower(from: Int, to: Int, s: HanoiState): Unit ={
-    val indices: Seq[Int] = s.towers(from).indices
-    val replaced = indices.foldLeft(s){ (state, idx) => replaceDisc(s.towers(from)(idx), to, state)}
-    render(replaced)
-  }
-
-  def replaceDisc(size: Int, toTowerIdx: Int, s: HanoiState): HanoiState = {
-    val fromTower = s.towers.indexWhere(_.contains(size))
-    val subIdx = s.towers(fromTower).indexWhere(_ == size)
-    replaceDisc(fromTower, subIdx, toTowerIdx, s)
+case class Hanoi(setup: HanoiSetup)
+{
+  def replaceSubTower(fromTower: Int, subIdx: Int, toTower: Int, s: HanoiState ):HanoiState = {
+    if (s.towers(fromTower).indices.max > subIdx) {
+      val rest = s.restTowerIdx(fromTower, toTower)
+      var restCnt = s.towers(rest).length
+      var replaced = replaceSubTower(fromTower, subIdx + 1, rest, s)
+      replaced = executeMove(fromTower, toTower, replaced)
+      replaceSubTower(rest, restCnt, toTower, replaced)
+    } else {
+      executeMove(fromTower, toTower, s)
+    }
   }
 
-  def replaceDisc(fromTowerIdx: Int, fromTowerSubIdx: Int, toTowerIdx: Int, s: HanoiState) :HanoiState ={
-    def moveToCollidingTower(currSize: Int) = {
-      // target has to be prepared
-      // find biggest disc idx which is smaller than currSize
-      val collIdx = s.towers(toTowerIdx).indexWhere(_ < currSize)
-      val clearTarget = replaceDisc(toTowerIdx, collIdx, s.restTowerIdx(fromTowerIdx, toTowerIdx), s)
-      val movedToTarget = replaceDisc(fromTowerIdx, fromTowerSubIdx, toTowerIdx, clearTarget)
-      movedToTarget
-    }
-
-    def moveUpperToOther = {
-      // not topmost, move upper disc to other tower
-      val clearSource = replaceDisc(fromTowerIdx, fromTowerSubIdx + 1, s.restTowerIdx(fromTowerIdx, toTowerIdx), s)
-      replaceDisc(fromTowerIdx, fromTowerSubIdx, toTowerIdx, clearSource)
-    }
-
-    def executeMove = {
-      // move
-      Thread.sleep(HanoiSetup.sleep)
-      render(s)
-      s.move(fromTowerIdx, toTowerIdx)
-    }
-
-    def isTopmost = s.towers(fromTowerIdx).size == fromTowerSubIdx + 1
-
-    if(isTopmost) {
-      // topmost disc
-      val currSize = s.towers(fromTowerIdx)(fromTowerSubIdx)
-      if (s.towers(toTowerIdx).lastOption.getOrElse(Int.MaxValue) > currSize) {
-        executeMove
-      } else {
-        moveToCollidingTower(currSize)
-      }
-    }
-    else{
-      moveUpperToOther
-    }
+  def executeMove(fromTower: Int, toTower: Int, hs: HanoiState): HanoiState = {
+    val moved = hs.move(fromTower, toTower)
+    setup.afterMove(moved)
+    moved
   }
 }
